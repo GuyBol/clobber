@@ -11,6 +11,8 @@
 #include <vector>
 #include <array>
 #include <algorithm>
+#include <chrono>
+#include <math.h>
 
 using namespace std;
 
@@ -21,6 +23,35 @@ const int MAX_NEIGHBOURS = 4;
 const int MAX_GRID_CELLS = 64;
 const int MAX_POSSIBLE_MOVES = 112;
 const int MAX_MINIMAX_DEPTH = 3;
+const int TIMEOUT_START = 1000;
+const int TIMEOUT = 150;
+
+
+double MyLog(unsigned int value)
+{
+    static array<double, 1000000> cache = {0.};
+    if (cache[value] == 0.)
+    {
+        cache[value] = log(value);
+    }
+    return cache[value];
+}
+
+
+class Random
+{
+public:
+    static void Init()
+    {
+        srand(time(nullptr));
+    }
+
+    // Return a random number in [0, max[
+    static int Rand(int max)
+    {
+        return rand() % max;
+    }
+};
 
 
 enum Player
@@ -166,6 +197,18 @@ public:
         return getAllPossibleMoves(ME, buffer) + getAllPossibleMoves(ENEMY, buffer) == 0;
     }
 
+    Player getWinner(Player player) const
+    {
+        if (completed())
+        {
+            return player == ME ? ENEMY : ME;
+        }
+        else
+        {
+            return NONE;
+        }
+    }
+
     string toString()
     {
         string str;
@@ -205,40 +248,187 @@ private:
 };
 
 
+class TreeElem
+{
+public:
+    TreeElem(const Grid& grid, TreeElem* parent, Player player, const Move& move):
+        _grid(grid),
+        _parent(parent),
+        _player(player),
+        _move(move),
+        _score(0),
+        _plays(0)
+    {
+    }
+
+    TreeElem* parent()
+    {
+        return _parent;
+    }
+
+    bool isRoot() const
+    {
+        return _parent == nullptr;
+    }
+
+    void setRoot()
+    {
+        _parent = nullptr;
+    }
+
+    vector<TreeElem*>& getChildren()
+    {
+        return _children;
+    }
+    const vector<TreeElem*>& getChildren() const
+    {
+        return _children;
+    }
+
+    bool isLeaf() const
+    {
+        return _children.empty();
+    }
+
+    const Grid& grid() const
+    {
+        return _grid;
+    }
+
+    const Player& player() const
+    {
+        return _player;
+    }
+
+    const Move& move() const
+    {
+        return _move;
+    }
+
+    int getAllowedMoves(bufferPossibleMoves_t& buffer) const
+    {
+        return _grid.getAllPossibleMoves(_player, buffer);
+    }
+
+    TreeElem* addChild(Move moveToPlay)
+    {
+        // TODO custom allocator for perf (and fix memory leak)
+        Player nextPlayer = _player == ME ? ENEMY : ME;
+        TreeElem* child = new TreeElem(_grid, this, nextPlayer, moveToPlay);
+        _children.push_back(child);
+        child->_grid.set(moveToPlay.from, NONE);
+        child->_grid.set(moveToPlay.to, _player);
+        return child;
+    }
+
+    void addScore(int score)
+    {
+        _score += score;
+        _plays++;
+    }
+
+    int score() const
+    {
+        return _score;
+    }
+
+    int plays() const
+    {
+        return _plays;
+    }
+
+    double computeUct() const
+    {
+        // TODO should we consider the defeat as negative score?
+        //DBG(_score << " " << _plays << " " << _parent->_plays);
+        if (_plays == 0)
+            return INFINITY;
+        else
+            return ((double)_score/(double)_plays) + 1.414 * sqrt(MyLog(_parent->_plays)/(double)_plays);
+    }
+
+    TreeElem* getChildWithBestUct() const
+    {
+        double bestUct = -INFINITY;
+        TreeElem* bestChild = nullptr;
+        for (TreeElem* child : _children)
+        {
+            double uct = child->computeUct();
+            if (uct > bestUct)
+            {
+                bestUct = uct;
+                bestChild = child;
+            }
+        }
+        return bestChild;
+    }
+
+    TreeElem* getChildWithBestAverageScore() const
+    {
+        double bestScore = -INFINITY;
+        TreeElem* bestChild = nullptr;
+        for (TreeElem* child : _children)
+        {
+            if ((double)child->_score/(double)child->_plays > bestScore)
+            {
+                bestScore = (double)child->_score/(double)child->_plays;
+                bestChild = child;
+            }
+        }
+        return bestChild;
+    }
+
+    TreeElem* findMove(const Move& move)
+    {
+        for (TreeElem* child : _children)
+        {
+            if (child->_move == move)
+            {
+                return child;
+            }
+        }
+        return nullptr;
+    }
+
+    void killBrothers()
+    {
+        if (!isRoot())
+        {
+            _parent->_children.clear();
+            _parent->_children.push_back(this);
+        }
+    }
+
+private:
+    Grid _grid;
+    TreeElem* _parent;
+    vector<TreeElem*> _children;
+    Player _player; // The player that will play at this stage
+    Move _move; // The move that lead to this node
+    int _score;
+    int _plays;
+};
+
+
 class AI
 {
 public:
-    AI(const Grid& grid): _grid(grid)
+    AI(const Grid& grid): _grid(grid), _treeRoot(nullptr), _timeout(TIMEOUT_START)
     {}
 
     // Return pair<from, to>
     Move play()
     {
-        Grid grid = _grid;
-        bufferPossibleMoves_t possibleMoves;
-        int possibleMovesCount = _grid.getAllPossibleMoves(ME, possibleMoves);
-        int maxEval = -MY_INFINITY;
-        Move bestMove = possibleMoves[0];
-        int alpha = -MY_INFINITY;
-        int beta = MY_INFINITY;
-        for (int i = 0; i < possibleMovesCount; i++)
+        // TODO remove if we want to reuse tree
+        _treeRoot = nullptr;
+        if (_treeRoot == nullptr)
         {
-            grid.set(possibleMoves[i].from, NONE);
-            grid.set(possibleMoves[i].to, ME);
-            int eval = minimax(grid, MAX_MINIMAX_DEPTH, alpha, beta, false);
-            grid.set(possibleMoves[i].from, ME);
-            grid.set(possibleMoves[i].to, ENEMY);
-            if (eval > maxEval)
-            {
-                maxEval = eval;
-                bestMove = possibleMoves[i];
-            }
-            alpha = max(alpha, eval);
-            if (beta <= alpha)
-                break;
+            _treeRoot = new TreeElem(_grid, nullptr, ME, Move());
         }
-        DBG(maxEval);
-        return bestMove;
+        Move pos = mcts(*_treeRoot);
+        // After first turn, timeout is 100 ms
+        _timeout = TIMEOUT;
+        return pos;
     }
 
     int evaluate(const Grid& grid)
@@ -274,53 +464,116 @@ public:
     }
 
 private:
-    int minimax(Grid& grid, int depth, int alpha, int beta, bool maximize)
+    // Monte Carlo Tree Search
+    // https://vgarciasc.github.io/mcts-viz/
+    // https://www.youtube.com/watch?v=UXW2yZndl7U
+    Move mcts(TreeElem& root)
     {
-        if (depth == 0 || grid.completed())
+        DBG("mcts");
+        int loops = 0;
+        chrono::time_point<chrono::high_resolution_clock> start = chrono::high_resolution_clock::now();
+#ifndef MCTS_LOOPS_LIMIT
+        while (chrono::duration_cast<std::chrono::milliseconds>(chrono::high_resolution_clock::now() - start).count() < _timeout)
+#else
+        for (int i = 0; i < MCTS_LOOPS_LIMIT; i++)
+#endif
         {
-            return evaluate(grid);
+            TreeElem* selected = selection(root);
+            TreeElem* expanded = expansion(*selected);
+            int score = simulation(*expanded);
+            backpropagation(*expanded, score);
+            loops++;
         }
-        if (maximize)
+        DBG(loops << " loops");
+        // Chose child with best uct
+        TreeElem* bestChild = root.getChildWithBestAverageScore();
+        //TreeElem* bestChild = root.getChildWithBestUct();
+        DBG(bestChild->score() << "/" << bestChild->plays());
+        return bestChild->move();
+    }
+
+    TreeElem* selection(TreeElem& treeElem)
+    {
+        if (treeElem.isLeaf())
         {
-            bufferPossibleMoves_t possibleMoves;
-            int possibleMovesCount = _grid.getAllPossibleMoves(ME, possibleMoves);
-            int maxEval = -MY_INFINITY;
-            for (int i = 0; i < possibleMovesCount; i++)
-            {
-                grid.set(possibleMoves[i].from, NONE);
-                grid.set(possibleMoves[i].to, ME);
-                int eval = minimax(grid, depth-1, alpha, beta, false);
-                grid.set(possibleMoves[i].from, ME);
-                grid.set(possibleMoves[i].to, ENEMY);
-                maxEval = max(maxEval, eval);
-                alpha = max(alpha, eval);
-                if (beta <= alpha)
-                    break;
-            }
-            return maxEval;
+            return &treeElem;
         }
         else
         {
-            bufferPossibleMoves_t possibleMoves;
-            int possibleMovesCount = _grid.getAllPossibleMoves(ENEMY, possibleMoves);
-            int minEval = MY_INFINITY;
-            for (int i = 0; i < possibleMovesCount; i++)
+            return selection(*treeElem.getChildWithBestUct());
+        }
+    }
+
+    TreeElem* expansion(TreeElem& treeElem)
+    {
+        if (treeElem.plays() > 0 || treeElem.isRoot())
+        {
+            // Add all possible children
+            bufferPossibleMoves_t allowedMoves;
+            int movesCount = treeElem.getAllowedMoves(allowedMoves);
+            if (movesCount > 0)
             {
-                grid.set(possibleMoves[i].from, NONE);
-                grid.set(possibleMoves[i].to, ENEMY);
-                int eval = minimax(grid, depth-1, alpha, beta, true);
-                grid.set(possibleMoves[i].from, ENEMY);
-                grid.set(possibleMoves[i].to, ME);
-                minEval = min(minEval, eval);
-                beta = min(beta, eval);
-                if (beta <= alpha)
-                    break;
+                for (int i = 0; i < movesCount; i++)
+                {
+                    treeElem.addChild(allowedMoves[i]);
+                }
+                return treeElem.getChildren()[0];
             }
-            return minEval;
+            else
+            {
+                return &treeElem;
+            }
+        }
+        else
+        {
+            return &treeElem;
+        }
+    }
+
+    int simulation(TreeElem& treeElem)
+    {
+        Grid grid = treeElem.grid();
+        Player player = treeElem.player();
+        Player winner = grid.getWinner(player);
+        if (winner == player)
+        {
+            treeElem.killBrothers();
+        }
+        bufferPossibleMoves_t allowedMoves;
+        while (winner == NONE)
+        {
+            int allowedMovesCount = grid.getAllPossibleMoves(player, allowedMoves);
+            Move picked = allowedMoves[Random::Rand(allowedMovesCount)];
+            grid.set(picked.from, NONE);
+            grid.set(picked.to, player);
+            player = player == ME ? ENEMY : ME;
+            winner = grid.getWinner(player);
+        }
+        switch (winner)
+        {
+        case ME:
+            return 1;
+        case ENEMY:
+            return 0;
+        default:
+            return -MY_INFINITY;
+        }
+    }
+
+    void backpropagation(TreeElem& treeElem, int score)
+    {
+        treeElem.addScore(score);
+        TreeElem* currentElem = &treeElem;
+        while (!currentElem->isRoot())
+        {
+            currentElem = currentElem->parent();
+            currentElem->addScore(score);
         }
     }
 
     const Grid& _grid;
+    TreeElem* _treeRoot;
+    int _timeout;
 };
 
 
@@ -331,6 +584,8 @@ private:
 #ifndef LOCAL
 int main()
 {
+    Random::Init();
+
     int board_size; // height and width of the board
     cin >> board_size; cin.ignore();
     string mycolor; // current color of your pieces ("w" or "b")
