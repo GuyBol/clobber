@@ -20,7 +20,7 @@ const int MY_INFINITY = 9999999;
 const int MAX_NEIGHBOURS = 4;
 const int MAX_GRID_CELLS = 64;
 const int MAX_POSSIBLE_MOVES = 112;
-const int MAX_MINIMAX_DEPTH = 1;
+const int MAX_MINIMAX_DEPTH = 3;
 
 
 enum Player
@@ -65,6 +65,16 @@ struct Move
     bool operator==(const Move& other) const
     {
         return from == other.from && to == other.to;
+    }
+
+    string toString() const
+    {
+        string str;
+        str += 'a' + from.x;
+        str += '1' + from.y;
+        str += 'a' + to.x;
+        str += '1' + to.y;
+        return str;
     }
 };
 
@@ -204,7 +214,7 @@ public:
     // Return pair<from, to>
     Move play()
     {
-        Grid grid = grid;
+        Grid grid = _grid;
         bufferPossibleMoves_t possibleMoves;
         int possibleMovesCount = _grid.getAllPossibleMoves(ME, possibleMoves);
         int maxEval = -MY_INFINITY;
@@ -227,6 +237,7 @@ public:
             if (beta <= alpha)
                 break;
         }
+        DBG(maxEval);
         return bestMove;
     }
 
@@ -267,7 +278,7 @@ private:
     {
         if (depth == 0 || grid.completed())
         {
-            return 0;// evaluate(grid);
+            return evaluate(grid);
         }
         if (maximize)
         {
@@ -329,6 +340,7 @@ int main()
     while (1) {
 
         Grid grid{board_size};
+        AI ai(grid);
 
         for (int y = board_size -1; y >= 0; y--) {
             string line; // horizontal row
@@ -349,12 +361,12 @@ int main()
         int actions_count; // number of legal actions
         cin >> actions_count; cin.ignore();
 
-        DBG(grid.toString());
+        //DBG(grid.toString());
 
         // Write an action using cout. DON'T FORGET THE "<< endl"
         // To debug: cerr << "Debug messages..." << endl;
 
-        cout << "random" << endl; // e.g. e2e3 (move piece at e2 to e3)
+        cout << ai.play().toString() << endl; // e.g. e2e3 (move piece at e2 to e3)
     }
 }
 #endif
