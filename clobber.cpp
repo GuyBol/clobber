@@ -143,7 +143,7 @@ private:
 class AI
 {
 public:
-    AI()
+    AI(const Grid& grid): _grid(grid)
     {}
 
     // Return pair<from, to>
@@ -151,6 +151,14 @@ public:
     {
         return make_pair(Position(0,0), Position(1,0));
     }
+
+    int evaluate()
+    {
+        return 0;
+    }
+
+private:
+    const Grid& _grid;
 };
 
 
