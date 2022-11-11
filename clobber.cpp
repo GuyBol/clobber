@@ -591,11 +591,11 @@ int main()
     string mycolor; // current color of your pieces ("w" or "b")
     cin >> mycolor; cin.ignore();
 
+    Grid grid{board_size};
+    AI ai(grid);
+
     // game loop
     while (1) {
-
-        Grid grid{board_size};
-        AI ai(grid);
 
         for (int y = board_size -1; y >= 0; y--) {
             string line; // horizontal row
@@ -607,6 +607,10 @@ int main()
                 if (c == 'w' || c == 'b')
                 {
                     grid.set({x,y}, mycolor[0] == c ? Player::ME : Player::ENEMY);
+                }
+                else if (c == '.')
+                {
+                    grid.set({x,y}, NONE);
                 }
                 ++x;
             }
