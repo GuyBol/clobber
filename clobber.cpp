@@ -534,20 +534,22 @@ private:
     {
         Grid grid = treeElem.grid();
         Player player = treeElem.player();
-        Player winner = grid.getWinner(player);
-        if (winner == player)
-        {
-            treeElem.killBrothers();
-        }
+        Player winner = NONE;
         bufferPossibleMoves_t allowedMoves;
         while (winner == NONE)
         {
             int allowedMovesCount = grid.getAllPossibleMoves(player, allowedMoves);
-            Move picked = allowedMoves[Random::Rand(allowedMovesCount)];
-            grid.set(picked.from, NONE);
-            grid.set(picked.to, player);
-            player = player == ME ? ENEMY : ME;
-            winner = grid.getWinner(player);
+            if (allowedMovesCount == 0)
+            {
+                winner = player == ME ? ENEMY : ME;
+            }
+            else
+            {
+                Move picked = allowedMoves[Random::Rand(allowedMovesCount)];
+                grid.set(picked.from, NONE);
+                grid.set(picked.to, player);
+                player = player == ME ? ENEMY : ME;
+            }
         }
         switch (winner)
         {
@@ -591,11 +593,11 @@ int main()
     string mycolor; // current color of your pieces ("w" or "b")
     cin >> mycolor; cin.ignore();
 
+    Grid grid{board_size};
+    AI ai(grid);
+
     // game loop
     while (1) {
-
-        Grid grid{board_size};
-        AI ai(grid);
 
         for (int y = board_size -1; y >= 0; y--) {
             string line; // horizontal row
@@ -607,6 +609,10 @@ int main()
                 if (c == 'w' || c == 'b')
                 {
                     grid.set({x,y}, mycolor[0] == c ? Player::ME : Player::ENEMY);
+                }
+                else if (c == '.')
+                {
+                    grid.set({x,y}, NONE);
                 }
                 ++x;
             }
