@@ -184,6 +184,11 @@ public:
         return str;
     }
 
+    int getSize() const
+    {
+        return _size;
+    }
+
 private:
     int _size;
     array<Player, MAX_GRID_CELLS> _cells;
@@ -225,9 +230,36 @@ public:
         return bestMove;
     }
 
-    int evaluate()
+    int evaluate(const Grid& grid)
     {
-        return 0;
+        int eval = 0;
+
+        bufferNeighbours_t neighbours;
+
+        for (int y = 0; y < grid.getSize(); y++)
+        {
+            for (int x = 0; x < grid.getSize(); x++)
+            {
+                switch (grid.get(x,y))
+                {
+                case NONE:
+                    break;
+                case ME:
+                    if (grid.getPossibleMoves({x,y}, neighbours) > 0)
+                    {
+                        eval++;
+                    }
+                    break;
+                case ENEMY:
+                    if (grid.getPossibleMoves({x,y}, neighbours) > 0)
+                    {
+                        eval--;
+                    }
+                    break;
+                }
+            }
+        }
+        return eval;
     }
 
 private:
