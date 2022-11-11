@@ -171,24 +171,26 @@ int main()
 
         Grid grid{board_size};
 
-        for (int i = 0; i < board_size; i++) {
+        for (int y = board_size -1; y >= 0; y--) {
             string line; // horizontal row
             cin >> line; cin.ignore();
 
-            int j=0;
+            int x = 0;
             for (const char& c: line)
             {
                 if (c == 'w' || c == 'b')
                 {
-                    grid.set({i,j}, mycolor[0] == c ? Player::ME : Player::ENEMY);
+                    grid.set({x,y}, mycolor[0] == c ? Player::ME : Player::ENEMY);
                 }
-                ++j;
+                ++x;
             }
         }
         string last_action; // last action made by the opponent ("null" if it's the first turn)
         cin >> last_action; cin.ignore();
         int actions_count; // number of legal actions
         cin >> actions_count; cin.ignore();
+
+        DBG(grid.toString());
 
         // Write an action using cout. DON'T FORGET THE "<< endl"
         // To debug: cerr << "Debug messages..." << endl;
