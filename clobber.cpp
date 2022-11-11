@@ -534,20 +534,22 @@ private:
     {
         Grid grid = treeElem.grid();
         Player player = treeElem.player();
-        Player winner = grid.getWinner(player);
-        if (winner == player)
-        {
-            treeElem.killBrothers();
-        }
+        Player winner = NONE;
         bufferPossibleMoves_t allowedMoves;
         while (winner == NONE)
         {
             int allowedMovesCount = grid.getAllPossibleMoves(player, allowedMoves);
-            Move picked = allowedMoves[Random::Rand(allowedMovesCount)];
-            grid.set(picked.from, NONE);
-            grid.set(picked.to, player);
-            player = player == ME ? ENEMY : ME;
-            winner = grid.getWinner(player);
+            if (allowedMovesCount == 0)
+            {
+                winner = player == ME ? ENEMY : ME;
+            }
+            else
+            {
+                Move picked = allowedMoves[Random::Rand(allowedMovesCount)];
+                grid.set(picked.from, NONE);
+                grid.set(picked.to, player);
+                player = player == ME ? ENEMY : ME;
+            }
         }
         switch (winner)
         {
