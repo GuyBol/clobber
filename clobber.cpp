@@ -25,6 +25,7 @@ const int MAX_POSSIBLE_MOVES = 112;
 const int MAX_MINIMAX_DEPTH = 3;
 const int TIMEOUT_START = 1000;
 const int TIMEOUT = 150;
+const double EXPLORATION = 100.;
 
 
 double MyLog(unsigned int value)
@@ -344,7 +345,7 @@ public:
         if (_plays == 0)
             return INFINITY;
         else
-            return ((double)_score/(double)_plays) + 1.414 * sqrt(MyLog(_parent->_plays)/(double)_plays);
+            return ((double)_score/(double)_plays) + EXPLORATION * sqrt(MyLog(_parent->_plays)/(double)_plays);
     }
 
     TreeElem* getChildWithBestUct() const

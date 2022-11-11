@@ -1,5 +1,5 @@
 #define LOCAL
-#define MCTS_LOOPS_LIMIT 10000
+// #define MCTS_LOOPS_LIMIT 10000
 
 #include "clobber.cpp"
 
@@ -122,6 +122,21 @@ void testMcts()
     ai.play();
 }
 
+void testMcts2()
+{
+    Grid grid = BuildGrid(  "-O----O-"
+                            "--OOO--O"
+                            "---O----"
+                            "-XX--O--"
+                            "-XO-----"
+                            "X-O-X-O-"
+                            "OOXX-OXX"
+                            "--XXXXX-");
+    DBG(grid.toString());
+    AI ai(grid);
+    assert(ai.play().toString() == "c2b2");
+}
+
 
 int main()
 {
@@ -130,6 +145,7 @@ int main()
     testGridGetSet();
     testGridGetPossibleMoves();
     testGridGetAllPossibleMoves();
+    testMcts2();
 
     testMcts();
 
