@@ -163,14 +163,26 @@ int main()
 {
     int board_size; // height and width of the board
     cin >> board_size; cin.ignore();
-    string color; // current color of your pieces ("w" or "b")
-    cin >> color; cin.ignore();
+    string mycolor; // current color of your pieces ("w" or "b")
+    cin >> mycolor; cin.ignore();
 
     // game loop
     while (1) {
+
+        Grid grid{board_size};
+
         for (int i = 0; i < board_size; i++) {
             string line; // horizontal row
             cin >> line; cin.ignore();
+
+            int j=0;
+            for (const char& c: line)
+            {
+                if (c == 'w' || c == 'b')
+                {
+                    grid.set({i,j}, mycolor[0] == c ? Player::ME : Player::ENEMY);
+                }
+            }
         }
         string last_action; // last action made by the opponent ("null" if it's the first turn)
         cin >> last_action; cin.ignore();
