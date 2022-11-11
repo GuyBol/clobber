@@ -1,8 +1,37 @@
 #define LOCAL
+#define MCTS_LOOPS_LIMIT 10000
 
 #include "clobber.cpp"
 
 #include <assert.h>
+
+
+Grid BuildGrid(const string& str)
+{
+    Grid grid(8);
+    int i = 0;
+    for (char c : str)
+    {
+        switch (c)
+        {
+        case '-':
+            grid.set({i%8, 7-i/8}, NONE);
+            i++;
+            break;
+        case 'X':
+            grid.set({i%8, 7-i/8}, ME);
+            i++;
+            break;
+        case 'O':
+            grid.set({i%8, 7-i/8}, ENEMY);
+            i++;
+            break;
+        default:
+            break;
+        }
+    }
+    return grid;
+}
 
 
 void testGridGetSet()
@@ -78,12 +107,31 @@ void testGridCompleted()
     assert(!grid.completed());
 }
 
+void testMcts()
+{
+    Grid grid = BuildGrid(  "XOXOXOXO"
+                            "OXOXOXOX"
+                            "XOXOXOXO"
+                            "OXOXOXX-"
+                            "XOXOXOXO"
+                            "OXOXOXOX"
+                            "XOO-XOXO"
+                            "OXOXOXOX");
+    DBG(grid.toString());
+    AI ai(grid);
+    ai.play();
+}
+
 
 int main()
 {
+    Random::Init();
+
     testGridGetSet();
     testGridGetPossibleMoves();
     testGridGetAllPossibleMoves();
+
+    testMcts();
 
     DBG("All test passed");
 }
