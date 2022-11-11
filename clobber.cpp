@@ -1,9 +1,24 @@
+#undef _GLIBCXX_DEBUG                // disable run-time bound checking, etc
+#pragma GCC optimize("Ofast,inline")
+#pragma GCC target("bmi,bmi2,lzcnt,popcnt")
+#pragma GCC target("movbe")
+#pragma GCC target("aes,pclmul,rdrnd")
+#pragma GCC target("avx,avx2,f16c,fma,sse3,ssse3,sse4.1,sse4.2")
+
+
 #include <iostream>
 #include <string>
 #include <vector>
+#include <array>
 #include <algorithm>
 
 using namespace std;
+
+#define DBG(stream)     cerr << stream << endl
+
+
+const int MAX_NEIGHBOURS = 4;
+const int MAX_GRID_CELLS = 64;
 
 
 enum Player
@@ -18,25 +33,82 @@ struct Position
 {
     int x;
     int y;
+
+    Position(int ix, int iy): x(ix), y(iy)
+    {}
+
+    Position(): x(-1), y(-1)
+    {}
+
+    bool operator==(const Position& other) const
+    {
+        return x == other.x && y == other.y;
+    }
 };
+
+typedef array<Position, MAX_NEIGHBOURS> bufferNeighbours_t;
 
 
 class Grid
 {
 public:
-    Grid(int size)
-    {}
+    Grid(int size): _size(size)
+    {
+        for (int i = 0; i < size*size; i++)
+        {
+            _cells[i] = NONE;
+        }
+    }
 
     Player get(const Position& pos) const
     {
-        return NONE;
+        return _cells[pos.x + pos.y * _size];
+    }
+
+    Player get(int x, int y) const
+    {
+        return _cells[x + y*_size];
     }
 
     void set(const Position& pos, Player player)
-    {}
+    {
+        _cells[pos.x + pos.y * _size] = player;
+    }
 
-    int getPossibleMoves(const Position& pos, Position* positions) const
-    {}
+    int getPossibleMoves(const Position& pos, bufferNeighbours_t& positions) const
+    {
+        Player player = get(pos);
+        if (player == NONE)
+        {
+            return 0;
+        }
+        else
+        {
+            Player other = player == ME ? ENEMY : ME;
+            int count = 0;
+            if (pos.x > 0 && get(pos.x-1, pos.y) == other)
+            {
+                positions[count++] = Position(pos.x-1, pos.y);
+            }
+            if (pos.x < _size-1 && get(pos.x+1, pos.y) == other)
+            {
+                positions[count++] = Position(pos.x+1, pos.y);
+            }
+            if (pos.y > 0 && get(pos.x, pos.y-1) == other)
+            {
+                positions[count++] = Position(pos.x, pos.y-1);
+            }
+            if (pos.y < _size-1 && get(pos.x, pos.y+1) == other)
+            {
+                positions[count++] = Position(pos.x, pos.y+1);
+            }
+            return count;
+        }
+    }
+
+private:
+    int _size;
+    array<Player, MAX_GRID_CELLS> _cells;
 };
 
 
