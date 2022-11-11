@@ -46,11 +46,44 @@ void testGridGetPossibleMoves()
     }
 }
 
+void testGridGetAllPossibleMoves()
+{
+    bufferPossibleMoves_t buffer;
+    Grid grid(8);
+    assert(grid.getAllPossibleMoves(ME, buffer) == 0);
+    assert(grid.getAllPossibleMoves(ENEMY, buffer) == 0);
+    grid.set(Position(3,3), ME);
+    assert(grid.getAllPossibleMoves(ME, buffer) == 0);
+    grid.set({4,3}, ENEMY);
+    assert(grid.getAllPossibleMoves(ME, buffer) == 1);
+    assert(buffer[0] == Move({3,3}, {4,3}));
+    assert(grid.getAllPossibleMoves(ENEMY, buffer) == 1);
+    assert(buffer[0] == Move({4,3}, {3,3}));
+    grid.set({5,3}, ME);
+    assert(grid.getAllPossibleMoves(ME, buffer) == 2);
+    assert(buffer[0] == Move({3,3}, {4,3}));
+    assert(buffer[1] == Move({5,3}, {4,3}));
+    assert(grid.getAllPossibleMoves(ENEMY, buffer) == 2);
+    assert(buffer[0] == Move({4,3}, {3,3}));
+    assert(buffer[1] == Move({4,3}, {5,3}));
+}
+
+void testGridCompleted()
+{
+    Grid grid(8);
+    assert(grid.completed());
+    grid.set({3,3}, ME);
+    assert(grid.completed());
+    grid.set({3,4}, ENEMY);
+    assert(!grid.completed());
+}
+
 
 int main()
 {
     testGridGetSet();
     testGridGetPossibleMoves();
+    testGridGetAllPossibleMoves();
 
     DBG("All test passed");
 }
