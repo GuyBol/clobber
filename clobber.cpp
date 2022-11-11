@@ -182,6 +182,7 @@ int main()
                 {
                     grid.set({i,j}, mycolor[0] == c ? Player::ME : Player::ENEMY);
                 }
+                ++j;
             }
         }
         string last_action; // last action made by the opponent ("null" if it's the first turn)
