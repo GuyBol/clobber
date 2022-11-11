@@ -106,9 +106,51 @@ public:
         }
     }
 
+    string toString()
+    {
+        string str;
+        for (int y = _size-1; y >= 0; y--)
+        {
+            for (int x = 0; x < _size; x++)
+            {
+                switch (get(x,y))
+                {
+                case NONE:
+                    str += "-";
+                    break;
+                case ME:
+                    str += "X";
+                    break;
+                case ENEMY:
+                    str += "O";
+                    break;
+                }
+            }
+            if (y > 0)
+            {
+                str += "\n";
+            }
+        }
+        return str;
+    }
+
 private:
     int _size;
     array<Player, MAX_GRID_CELLS> _cells;
+};
+
+
+class AI
+{
+public:
+    AI()
+    {}
+
+    // Return pair<from, to>
+    pair<Position, Position> play()
+    {
+        return make_pair(Position(0,0), Position(1,0));
+    }
 };
 
 
