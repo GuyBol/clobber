@@ -1,5 +1,5 @@
 #define LOCAL
-// #define MCTS_LOOPS_LIMIT 10000
+#define MCTS_LOOPS_LIMIT 10000
 
 #include "clobber.cpp"
 
@@ -142,10 +142,10 @@ int main()
 {
     Random::Init();
 
-    testGridGetSet();
-    testGridGetPossibleMoves();
-    testGridGetAllPossibleMoves();
-    testMcts2();
+    // testGridGetSet();
+    // testGridGetPossibleMoves();
+    // testGridGetAllPossibleMoves();
+    // testMcts2();
 
     testMcts();
 

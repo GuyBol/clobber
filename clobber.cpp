@@ -118,25 +118,28 @@ class Grid
 public:
     Grid(int size): _size(size)
     {
-        for (int i = 0; i < size*size; i++)
+        for (int x = 0; x < size; x++)
         {
-            _cells[i] = NONE;
+            for (int y = 0; y < size; y++)
+            {
+                _cells[x][y] = NONE;
+            }
         }
     }
 
     Player get(const Position& pos) const
     {
-        return _cells[pos.x + pos.y * _size];
+        return _cells[pos.x][pos.y];
     }
 
     Player get(int x, int y) const
     {
-        return _cells[x + y*_size];
+        return _cells[x][y];
     }
 
     void set(const Position& pos, Player player)
     {
-        _cells[pos.x + pos.y * _size] = player;
+        _cells[pos.x][pos.y] = player;
     }
 
     int getPossibleMoves(const Position& pos, bufferNeighbours_t& positions) const
@@ -245,7 +248,8 @@ public:
 
 private:
     int _size;
-    array<Player, MAX_GRID_CELLS> _cells;
+    // array<Player, MAX_GRID_CELLS> _cells;
+    array<array<Player, 8>, 8> _cells;
 };
 
 
