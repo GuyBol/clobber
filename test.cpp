@@ -4,6 +4,7 @@
 #include "clobber.cpp"
 
 #include <assert.h>
+#include <set>
 
 
 Grid BuildGrid(const string& str)
@@ -33,6 +34,85 @@ Grid BuildGrid(const string& str)
     return grid;
 }
 
+
+void testRandomAccessSet()
+{
+    RandomAccessSet<MAX_POSSIBLE_MOVES> s;
+    assert(s.size() == 0);
+    assert(!s.contains(1));
+    s.insert(1);
+    assert(s.size() == 1);
+    assert(s.contains(1));
+    assert(s.at(0) == 1);
+    s.insert(100);
+    assert(s.size() == 2);
+    assert(s.contains(1));
+    assert(s.contains(100));
+    assert(s.at(0) == 1);
+    assert(s.at(1) == 100);
+    s.insert(101);
+    assert(s.size() == 3);
+    s.erase(101);
+    assert(s.size() == 2);
+    assert(s.contains(1));
+    assert(s.contains(100));
+    assert(!s.contains(101));
+    assert(s.at(0) == 1);
+    assert(s.at(1) == 100);
+    s.erase(1);
+    assert(s.size() == 1);
+    assert(!s.contains(1));
+    assert(s.contains(100));
+    assert(s.at(0) == 100);
+    s.insert(10);
+    assert(s.size() == 2);
+    assert(s.contains(10));
+    assert(s.contains(100));
+    assert(s.at(0) == 100);
+    assert(s.at(1) == 10);
+    s.erase(100);
+    assert(s.size() == 1);
+    assert(s.contains(10));
+    assert(!s.contains(100));
+    assert(s.at(0) == 10);
+}
+
+
+void testConnection()
+{
+    assert(Connection(0,1).hash() == 0);
+    assert(Connection(1,0).hash() == 0);
+    assert(Connection(0,8).hash() == 1);
+    assert(Connection(1,2).hash() == 2);
+    assert(Connection(4,5).hash() == 8);
+    assert(Connection(62,63).hash() == 111);
+    assert(Connection(0) == Connection(0,1));
+    assert(Connection(1) == Connection(0,8));
+    assert(Connection(2) == Connection(1,2));
+    assert(Connection(8) == Connection(4,5));
+    assert(Connection(111) == Connection(62,63));
+    set<int> allHashes;
+    for (int y = 0; y < GRID_SIZE; y++)
+    {
+        for (int x = 0; x < GRID_SIZE; x++)
+        {
+            int origin = x + y*GRID_SIZE;
+            if (x < GRID_SIZE-1)
+            {
+                int connection = Connection(origin, x+1 + y*GRID_SIZE).hash();
+                assert(allHashes.find(connection) == allHashes.end());
+                allHashes.insert(connection);
+            }
+            if (y < GRID_SIZE-1)
+            {
+                int connection = Connection(origin, x + (y+1)*GRID_SIZE).hash();
+                assert(allHashes.find(connection) == allHashes.end());
+                allHashes.insert(connection);
+            }
+        }
+    }
+    assert(allHashes.size() == 112);
+}
 
 void testGridGetSet()
 {
@@ -107,6 +187,46 @@ void testGridCompleted()
     assert(!grid.completed());
 }
 
+void testGridWithRandomAccessSet()
+{
+    Grid grid = BuildGrid(  "XOXOXOXO"
+                            "OXOXOXOX"
+                            "XOXOXOXO"
+                            "OXOXOXOX"
+                            "XOXOXOXO"
+                            "OXOXOXOX"
+                            "XOXOXOXO"
+                            "OXOXOXOX");
+    assert(grid.getPossibleMovesCount() == 112);
+    assert(grid.getPossibleMoveAt(0, ME) == Move({1,0}, {0,0}));
+    assert(grid.getPossibleMoveAt(0, ENEMY) == Move({0,0}, {1,0}));
+    assert(grid.getPossibleMoveAt(111, ME) == Move({6,7}, {7,7}));
+    assert(grid.getPossibleMoveAt(111, ENEMY) == Move({7,7}, {6,7}));
+    // This removes connections 0, 2, 3, and flips connections 4, 5
+    grid.move(Move({1,0}, {2,0}));
+    assert(grid.getPossibleMovesCount() == 107);
+    // The connection 0 has been replaced by the last one
+    assert(grid.getPossibleMoveAt(0, ME) == Move({6,7}, {7,7}));
+    // The connection 1 is still there
+    assert(grid.getPossibleMoveAt(1, ME) == Move({0,1}, {0,0}));
+    // This connection must be flipped
+    assert(grid.getPossibleMoveAt(Connection(2,3).hash(), ME) != Move({3,0},{2,0}));
+    // This removes 4 connections, flips 1 to same, and flips back 1 to different
+    grid.move(Move({3,1}, {3,0}));
+    assert(grid.getPossibleMovesCount() == 103);
+    // Check that the Connection({3,0},{2,0}) is back to the list
+    bool found = false;
+    for (int i = 0; i < 103; i++)
+    {
+        if (grid.getPossibleMoveAt(i, ENEMY) == Move({3,0}, {2,0}))
+        {
+            found = true;
+            break;
+        }
+    }
+    assert(found);
+}
+
 void testMcts()
 {
     Grid grid = BuildGrid(  "XOXOXOXO"
@@ -134,7 +254,7 @@ void testMcts2()
                             "--XXXXX-");
     DBG(grid.toString());
     AI ai(grid);
-    assert(ai.play().toString() == "c2b2");
+    //assert(ai.play().toString() == "c2b2");
 }
 
 
@@ -142,10 +262,13 @@ int main()
 {
     Random::Init();
 
-    // testGridGetSet();
-    // testGridGetPossibleMoves();
-    // testGridGetAllPossibleMoves();
-    // testMcts2();
+    testRandomAccessSet();
+    testConnection();
+    testGridGetSet();
+    testGridGetPossibleMoves();
+    testGridGetAllPossibleMoves();
+    testGridWithRandomAccessSet();
+    testMcts2();
 
     testMcts();
 

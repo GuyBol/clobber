@@ -20,7 +20,8 @@ using namespace std;
 
 const int MY_INFINITY = 9999999;
 const int MAX_NEIGHBOURS = 4;
-const int MAX_GRID_CELLS = 64;
+const int GRID_SIZE = 8;
+const int MAX_GRID_CELLS = GRID_SIZE * GRID_SIZE;
 const int MAX_POSSIBLE_MOVES = 112;
 const int MAX_MINIMAX_DEPTH = 3;
 const int TIMEOUT_START = 1000;
@@ -52,6 +53,65 @@ public:
     {
         return rand() % max;
     }
+};
+
+
+// A set of unsigned int with random access
+// The inserted values must be lower than MAX_SIZE
+template <unsigned int MAX_SIZE>
+class RandomAccessSet
+{
+public:
+    static const int npos = -1;
+
+    RandomAccessSet(): _size(0)
+    {
+        for (int i = 0; i < MAX_SIZE; i++)
+        {
+            _map[i] = npos;
+        }
+    }
+
+    size_t size() const
+    {
+        return _size;
+    }
+
+    // Might think about returning something useful
+    void insert(unsigned int value)
+    {
+        _map[value] = _size;
+        _vector[_size] = value;
+        _size++;
+    }
+
+    void erase(unsigned int value)
+    {
+        if (contains(value))
+        {
+            // Switch with last value
+            _vector[_map[value]] = _vector[_size-1];
+            _map[_vector[_size-1]] = _map[value];
+            _map[value] = npos;
+            _size--;
+        }
+    }
+
+    bool contains(unsigned int value) const
+    {
+        return _map[value] != npos;
+    }
+
+    const unsigned int& at(size_t index) const
+    {
+        return _vector[index];
+    }
+
+private:
+    size_t _size;
+    typedef array<unsigned int, MAX_SIZE> array_t;
+    array_t _map;
+    array_t _vector;
 };
 
 
@@ -99,6 +159,11 @@ struct Move
         return from == other.from && to == other.to;
     }
 
+    bool operator!=(const Move& other) const
+    {
+        return !(*this == other);
+    }
+
     string toString() const
     {
         string str;
@@ -113,6 +178,82 @@ struct Move
 typedef array<Move, MAX_POSSIBLE_MOVES> bufferPossibleMoves_t;
 
 
+class Connection
+{
+public:
+    Connection(int first, int second): _first(min(first,second)), _second(max(first,second))
+    {}
+
+    Connection(int hash): _first(_ReverseHashMap[hash] / MAX_GRID_CELLS), _second(_ReverseHashMap[hash] % MAX_GRID_CELLS)
+    {}
+
+    Connection(): _first(0), _second(0)
+    {}
+
+    int first() const
+    {
+        return _first;
+    }
+
+    int second() const
+    {
+        return _second;
+    }
+
+    int hash() const
+    {
+        return _HashMap[_first*MAX_GRID_CELLS + _second];
+    }
+
+    bool operator==(const Connection& other) const
+    {
+        return _first == other._first && _second == other._second;
+    }
+
+private:
+    int _first;
+    int _second;
+
+    typedef array<int, MAX_GRID_CELLS*MAX_GRID_CELLS> hashMap_t;
+    static hashMap_t _HashMap;
+    typedef array<int, MAX_POSSIBLE_MOVES> reverseHashMap_t;
+    static reverseHashMap_t _ReverseHashMap;
+    static bool _Initialized;
+
+    static bool BuildHashMap()
+    {
+        DBG("Build hash map");
+        int count = 0;
+        for (int y = 0; y < GRID_SIZE; y++)
+        {
+            for (int x = 0; x < GRID_SIZE; x++)
+            {
+                int origin = x + y*GRID_SIZE;
+                if (x < GRID_SIZE-1)
+                {
+                    int index = origin*MAX_GRID_CELLS + (x+1 + y*GRID_SIZE);
+                    _HashMap[index] = count;
+                    _ReverseHashMap[count] = index;
+                    count++;
+                }
+                if (y < GRID_SIZE-1)
+                {
+                    int index = origin*MAX_GRID_CELLS + (x + (y+1)*GRID_SIZE);
+                    _HashMap[index] = count;
+                    _ReverseHashMap[count] = index;
+                    count++;
+                }
+            }
+        }
+        return true;
+    }
+};
+
+Connection::hashMap_t Connection::_HashMap;
+Connection::reverseHashMap_t Connection::_ReverseHashMap;
+bool Connection::_Initialized = Connection::BuildHashMap();
+
+
 class Grid
 {
 public:
@@ -124,6 +265,10 @@ public:
             {
                 _cells[x][y] = NONE;
             }
+        }
+        for (int i = 0; i < MAX_POSSIBLE_MOVES; i++)
+        {
+            _connectionsDifferent.insert(i);
         }
     }
 
@@ -140,6 +285,32 @@ public:
     void set(const Position& pos, Player player)
     {
         _cells[pos.x][pos.y] = player;
+    }
+
+    void move(const Move& move)
+    {
+        // Update grid
+        set(move.to, get(move.from));
+        set(move.from, NONE);
+        // Remove all connections from origin
+        for (int connectionHash : _CellToConnectionMap[move.from.x + move.from.y*GRID_SIZE])
+        {
+            _connectionsDifferent.erase(connectionHash);
+        }
+        // Flip connections of destination
+        for (int connectionHash : _CellToConnectionMap[move.to.x + move.to.y*GRID_SIZE])
+        {
+            if (_connectionsDifferent.contains(connectionHash))
+            {
+                _connectionsDifferent.erase(connectionHash);
+                _connectionsSame.insert(connectionHash);
+            }
+            else if (_connectionsSame.contains(connectionHash))
+            {
+                _connectionsSame.erase(connectionHash);
+                _connectionsDifferent.insert(connectionHash);
+            }
+        }
     }
 
     int getPossibleMoves(const Position& pos, bufferNeighbours_t& positions) const
@@ -195,6 +366,23 @@ public:
         return count;
     }
 
+    int getPossibleMovesCount() const
+    {
+        return _connectionsDifferent.size();
+    }
+
+    Move getPossibleMoveAt(size_t index, Player player) const
+    {
+        unsigned int first = Connection(_connectionsDifferent.at(index)).first();
+        unsigned int second = Connection(_connectionsDifferent.at(index)).second();
+        Position pos1(first % GRID_SIZE, first / GRID_SIZE);
+        Position pos2(second % GRID_SIZE, second / GRID_SIZE);
+        if (get(pos1) == player)
+            return Move(pos1, pos2);
+        else
+            return Move(pos2, pos1);
+    }
+
     bool completed() const
     {
         bufferPossibleMoves_t buffer;
@@ -248,9 +436,36 @@ public:
 
 private:
     int _size;
-    // array<Player, MAX_GRID_CELLS> _cells;
-    array<array<Player, 8>, 8> _cells;
+    array<array<Player, GRID_SIZE>, GRID_SIZE> _cells;
+    RandomAccessSet<MAX_POSSIBLE_MOVES> _connectionsDifferent;
+    RandomAccessSet<MAX_POSSIBLE_MOVES> _connectionsSame;
+
+    // Map cell->connections hashes
+    static array<vector<int>, MAX_GRID_CELLS> _CellToConnectionMap;
+
+    static array<vector<int>, MAX_GRID_CELLS> BuildCellToConnectionMap()
+    {
+        array<vector<int>, MAX_GRID_CELLS> result;
+        for (int x = 0; x < GRID_SIZE; x++)
+        {
+            for (int y = 0; y < GRID_SIZE; y++)
+            {
+                int cell = x + y*GRID_SIZE;
+                if (x > 0)
+                    result[cell].push_back(Connection(cell, (x-1) + y*GRID_SIZE).hash());
+                if (x < GRID_SIZE-1)
+                    result[cell].push_back(Connection(cell, (x+1) + y*GRID_SIZE).hash());
+                if (y > 0)
+                    result[cell].push_back(Connection(cell, x + (y-1)*GRID_SIZE).hash());
+                if (y < GRID_SIZE-1)
+                    result[cell].push_back(Connection(cell, x + (y+1)*GRID_SIZE).hash());
+            }
+        }
+        return result;
+    }
 };
+
+array<vector<int>, MAX_GRID_CELLS> Grid::_CellToConnectionMap = Grid::BuildCellToConnectionMap();
 
 
 class TreeElem
