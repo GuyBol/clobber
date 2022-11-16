@@ -24,9 +24,11 @@ const int GRID_SIZE = 8;
 const int MAX_GRID_CELLS = GRID_SIZE * GRID_SIZE;
 const int MAX_POSSIBLE_MOVES = 112;
 const int MAX_MINIMAX_DEPTH = 3;
-const int TIMEOUT_START = 1000;
-const int TIMEOUT = 150;
+// TODO manage properly timeout for more compute at start
+const int TIMEOUT_START = 140;
+const int TIMEOUT = 140;
 const double EXPLORATION = 100.;
+const int TREE_CACHE_SIZE = 200000;
 
 
 double MyLog(unsigned int value)
@@ -342,7 +344,7 @@ public:
         }
     }
 
-    int getPossibleMoves(const Position& pos, bufferNeighbours_t& positions) const
+    /*int getPossibleMoves(const Position& pos, bufferNeighbours_t& positions) const
     {
         Player player = get(pos);
         if (player == NONE)
@@ -393,7 +395,7 @@ public:
             }
         }
         return count;
-    }
+    }*/
 
     int getPossibleMovesCount() const
     {
@@ -414,8 +416,7 @@ public:
 
     bool completed() const
     {
-        bufferPossibleMoves_t buffer;
-        return getAllPossibleMoves(ME, buffer) + getAllPossibleMoves(ENEMY, buffer) == 0;
+        return (getPossibleMovesCount() == 0);
     }
 
     Player getWinner(Player player) const
@@ -500,14 +501,23 @@ array<vector<int>, MAX_GRID_CELLS> Grid::_CellToConnectionMap = Grid::BuildCellT
 class TreeElem
 {
 public:
-    TreeElem(const Grid& grid, TreeElem* parent, Player player, const Move& move):
-        _grid(grid),
-        _parent(parent),
-        _player(player),
-        _move(move),
-        _score(0),
-        _plays(0)
+    static TreeElem* New(const Grid& grid, TreeElem* parent, Player player, const Move& move)
     {
+        if (_MemoryPos == TREE_CACHE_SIZE-1)
+        {
+            DBG("Out of memory cache");
+            return nullptr;
+        }
+        else
+        {
+            _MemoryCache[_MemoryPos] = TreeElem(grid, parent, player, move);
+            return &_MemoryCache[_MemoryPos++];
+        }
+    }
+
+    static void CollectGarbage()
+    {
+        _MemoryPos = 0;
     }
 
     TreeElem* parent()
@@ -554,19 +564,28 @@ public:
         return _move;
     }
 
-    int getAllowedMoves(bufferPossibleMoves_t& buffer) const
+    /*int getAllowedMoves(bufferPossibleMoves_t& buffer) const
     {
         return _grid.getAllPossibleMoves(_player, buffer);
+    }*/
+
+    int getAllowedMovesCount() const
+    {
+        return _grid.getPossibleMovesCount();
+    }
+
+    Move getAllowedMoveAt(size_t index) const
+    {
+        return _grid.getPossibleMoveAt(index, _player);
     }
 
     TreeElem* addChild(Move moveToPlay)
     {
         // TODO custom allocator for perf (and fix memory leak)
         Player nextPlayer = _player == ME ? ENEMY : ME;
-        TreeElem* child = new TreeElem(_grid, this, nextPlayer, moveToPlay);
+        TreeElem* child = TreeElem::New(_grid, this, nextPlayer, moveToPlay);
         _children.push_back(child);
-        child->_grid.set(moveToPlay.from, NONE);
-        child->_grid.set(moveToPlay.to, _player);
+        child->_grid.move(moveToPlay);
         return child;
     }
 
@@ -648,7 +667,20 @@ public:
         }
     }
 
+    TreeElem(): _grid(GRID_SIZE), _parent(nullptr), _score(0), _plays(0)
+    {}
+
 private:
+    TreeElem(const Grid& grid, TreeElem* parent, Player player, const Move& move):
+        _grid(grid),
+        _parent(parent),
+        _player(player),
+        _move(move),
+        _score(0),
+        _plays(0)
+    {
+    }
+
     Grid _grid;
     TreeElem* _parent;
     vector<TreeElem*> _children;
@@ -656,7 +688,13 @@ private:
     Move _move; // The move that lead to this node
     int _score;
     int _plays;
+
+    static array<TreeElem, TREE_CACHE_SIZE> _MemoryCache;
+    static unsigned int _MemoryPos;
 };
+
+array<TreeElem, TREE_CACHE_SIZE> TreeElem::_MemoryCache;
+unsigned int TreeElem::_MemoryPos = 0;
 
 
 class AI
@@ -672,44 +710,12 @@ public:
         _treeRoot = nullptr;
         if (_treeRoot == nullptr)
         {
-            _treeRoot = new TreeElem(_grid, nullptr, ME, Move());
+            _treeRoot = TreeElem::New(_grid, nullptr, ME, Move());
         }
         Move pos = mcts(*_treeRoot);
         // After first turn, timeout is 100 ms
         _timeout = TIMEOUT;
         return pos;
-    }
-
-    int evaluate(const Grid& grid)
-    {
-        int eval = 0;
-
-        bufferNeighbours_t neighbours;
-
-        for (int y = 0; y < grid.getSize(); y++)
-        {
-            for (int x = 0; x < grid.getSize(); x++)
-            {
-                switch (grid.get(x,y))
-                {
-                case NONE:
-                    break;
-                case ME:
-                    if (grid.getPossibleMoves({x,y}, neighbours) > 0)
-                    {
-                        eval++;
-                    }
-                    break;
-                case ENEMY:
-                    if (grid.getPossibleMoves({x,y}, neighbours) > 0)
-                    {
-                        eval--;
-                    }
-                    break;
-                }
-            }
-        }
-        return eval;
     }
 
 private:
@@ -758,13 +764,12 @@ private:
         if (treeElem.plays() > 0 || treeElem.isRoot())
         {
             // Add all possible children
-            bufferPossibleMoves_t allowedMoves;
-            int movesCount = treeElem.getAllowedMoves(allowedMoves);
+            int movesCount = treeElem.getAllowedMovesCount();
             if (movesCount > 0)
             {
                 for (int i = 0; i < movesCount; i++)
                 {
-                    treeElem.addChild(allowedMoves[i]);
+                    treeElem.addChild(treeElem.getAllowedMoveAt(i));
                 }
                 return treeElem.getChildren()[0];
             }
@@ -781,22 +786,21 @@ private:
 
     int simulation(TreeElem& treeElem)
     {
+        int count = 0;
         Grid grid = treeElem.grid();
         Player player = treeElem.player();
         Player winner = NONE;
-        bufferPossibleMoves_t allowedMoves;
         while (winner == NONE)
         {
-            int allowedMovesCount = grid.getAllPossibleMoves(player, allowedMoves);
+            int allowedMovesCount = grid.getPossibleMovesCount();
             if (allowedMovesCount == 0)
             {
                 winner = player == ME ? ENEMY : ME;
             }
             else
             {
-                Move picked = allowedMoves[Random::Rand(allowedMovesCount)];
-                grid.set(picked.from, NONE);
-                grid.set(picked.to, player);
+                Move picked = grid.getPossibleMoveAt(Random::Rand(allowedMovesCount), player);
+                grid.move(picked);
                 player = player == ME ? ENEMY : ME;
             }
         }
@@ -842,11 +846,10 @@ int main()
     string mycolor; // current color of your pieces ("w" or "b")
     cin >> mycolor; cin.ignore();
 
-    Grid grid{board_size};
-    AI ai(grid);
-
     // game loop
     while (1) {
+        Grid grid{board_size};
+        AI ai(grid);
 
         for (int y = board_size -1; y >= 0; y--) {
             string line; // horizontal row
@@ -866,6 +869,7 @@ int main()
                 ++x;
             }
         }
+        grid.buildConnections();
         string last_action; // last action made by the opponent ("null" if it's the first turn)
         cin >> last_action; cin.ignore();
         int actions_count; // number of legal actions
@@ -877,6 +881,8 @@ int main()
         // To debug: cerr << "Debug messages..." << endl;
 
         cout << ai.play().toString() << endl; // e.g. e2e3 (move piece at e2 to e3)
+
+        TreeElem::CollectGarbage();
     }
 }
 #endif

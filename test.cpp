@@ -140,7 +140,7 @@ void testGridGetSet()
     assert(grid.get(Position(4,4)) == NONE);
 }
 
-void testGridGetPossibleMoves()
+/*void testGridGetPossibleMoves()
 {
     bufferNeighbours_t buffer;
     Grid grid(8);
@@ -180,29 +180,32 @@ void testGridGetAllPossibleMoves()
     assert(grid.getAllPossibleMoves(ENEMY, buffer) == 2);
     assert(buffer[0] == Move({4,3}, {3,3}));
     assert(buffer[1] == Move({4,3}, {5,3}));
-}
+}*/
 
 void testGridCompleted()
 {
     Grid grid(8);
+    grid.buildConnections();
     assert(grid.completed());
     grid.set({3,3}, ME);
+    grid.buildConnections();
     assert(grid.completed());
     grid.set({3,4}, ENEMY);
+    grid.buildConnections();
     assert(!grid.completed());
 }
 
 void testGridWithRandomAccessSet()
 {
     // Full grid (at startup)
-    Grid gridStart = BuildGrid(  "XOXOXOXO"
-                            "OXOXOXOX"
-                            "XOXOXOXO"
-                            "OXOXOXOX"
-                            "XOXOXOXO"
-                            "OXOXOXOX"
-                            "XOXOXOXO"
-                            "OXOXOXOX");
+    Grid gridStart = BuildGrid("XOXOXOXO"
+                               "OXOXOXOX"
+                               "XOXOXOXO"
+                               "OXOXOXOX"
+                               "XOXOXOXO"
+                               "OXOXOXOX"
+                               "XOXOXOXO"
+                               "OXOXOXOX");
     gridStart.buildConnections();
     assert(gridStart.getPossibleMovesCount() == 112);
     assert(gridStart.getPossibleMoveAt(0, ME) == Move({1,0}, {0,0}));
@@ -279,7 +282,7 @@ void testMcts2()
                             "--XXXXX-");
     DBG(grid.toString());
     AI ai(grid);
-    //assert(ai.play().toString() == "c2b2");
+    assert(ai.play().toString() == "c2b2");
 }
 
 
@@ -287,13 +290,14 @@ int main()
 {
     Random::Init();
 
-    testRandomAccessSet();
-    testConnection();
-    testGridGetSet();
-    testGridGetPossibleMoves();
-    testGridGetAllPossibleMoves();
-    testGridWithRandomAccessSet();
-    testMcts2();
+    // testRandomAccessSet();
+    // testConnection();
+    // testGridGetSet();
+    // testGridCompleted();
+    // // testGridGetPossibleMoves();
+    // // testGridGetAllPossibleMoves();
+    // testGridWithRandomAccessSet();
+    // testMcts2();
 
     testMcts();
 
