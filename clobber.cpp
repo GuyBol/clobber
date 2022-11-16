@@ -80,9 +80,12 @@ public:
     // Might think about returning something useful
     void insert(unsigned int value)
     {
-        _map[value] = _size;
-        _vector[_size] = value;
-        _size++;
+        if (!contains(value))
+        {
+            _map[value] = _size;
+            _vector[_size] = value;
+            _size++;
+        }
     }
 
     void erase(unsigned int value)
@@ -266,10 +269,6 @@ public:
                 _cells[x][y] = NONE;
             }
         }
-        for (int i = 0; i < MAX_POSSIBLE_MOVES; i++)
-        {
-            _connectionsDifferent.insert(i);
-        }
     }
 
     Player get(const Position& pos) const
@@ -287,6 +286,35 @@ public:
         _cells[pos.x][pos.y] = player;
     }
 
+    // To be called after set
+    void buildConnections()
+    {
+        for (int y = 0; y < _size; y++)
+        {
+            for (int x = 0; x < _size; x++)
+            {
+                if (get(x,y) != NONE)
+                {
+                    int cell = x + y*GRID_SIZE;
+                    if (x < GRID_SIZE-1)
+                    {
+                        if (get(x+1,y) != NONE && get(x,y) != get(x+1,y))
+                            _connectionsDifferent.insert(Connection(cell, (x+1) + y*GRID_SIZE).hash());
+                        else if (get(x+1,y) != NONE && get(x,y) == get(x+1,y))
+                            _connectionsSame.insert(Connection(cell, (x+1) + y*GRID_SIZE).hash());
+                    }
+                    if (y < GRID_SIZE-1)
+                    {
+                        if (get(x,y+1) != NONE && get(x,y) != get(x,y+1))
+                            _connectionsDifferent.insert(Connection(cell, x + (y+1)*GRID_SIZE).hash());
+                        else if (get(x,y+1) != NONE && get(x,y) == get(x,y+1))
+                            _connectionsSame.insert(Connection(cell, x + (y+1)*GRID_SIZE).hash());
+                    }
+                }
+            }
+        }
+    }
+
     void move(const Move& move)
     {
         // Update grid
@@ -296,6 +324,7 @@ public:
         for (int connectionHash : _CellToConnectionMap[move.from.x + move.from.y*GRID_SIZE])
         {
             _connectionsDifferent.erase(connectionHash);
+            _connectionsSame.erase(connectionHash);
         }
         // Flip connections of destination
         for (int connectionHash : _CellToConnectionMap[move.to.x + move.to.y*GRID_SIZE])

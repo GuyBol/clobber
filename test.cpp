@@ -31,6 +31,7 @@ Grid BuildGrid(const string& str)
             break;
         }
     }
+    grid.buildConnections();
     return grid;
 }
 
@@ -40,6 +41,10 @@ void testRandomAccessSet()
     RandomAccessSet<MAX_POSSIBLE_MOVES> s;
     assert(s.size() == 0);
     assert(!s.contains(1));
+    s.insert(1);
+    assert(s.size() == 1);
+    assert(s.contains(1));
+    assert(s.at(0) == 1);
     s.insert(1);
     assert(s.size() == 1);
     assert(s.contains(1));
@@ -189,7 +194,8 @@ void testGridCompleted()
 
 void testGridWithRandomAccessSet()
 {
-    Grid grid = BuildGrid(  "XOXOXOXO"
+    // Full grid (at startup)
+    Grid gridStart = BuildGrid(  "XOXOXOXO"
                             "OXOXOXOX"
                             "XOXOXOXO"
                             "OXOXOXOX"
@@ -197,34 +203,53 @@ void testGridWithRandomAccessSet()
                             "OXOXOXOX"
                             "XOXOXOXO"
                             "OXOXOXOX");
-    assert(grid.getPossibleMovesCount() == 112);
-    assert(grid.getPossibleMoveAt(0, ME) == Move({1,0}, {0,0}));
-    assert(grid.getPossibleMoveAt(0, ENEMY) == Move({0,0}, {1,0}));
-    assert(grid.getPossibleMoveAt(111, ME) == Move({6,7}, {7,7}));
-    assert(grid.getPossibleMoveAt(111, ENEMY) == Move({7,7}, {6,7}));
+    gridStart.buildConnections();
+    assert(gridStart.getPossibleMovesCount() == 112);
+    assert(gridStart.getPossibleMoveAt(0, ME) == Move({1,0}, {0,0}));
+    assert(gridStart.getPossibleMoveAt(0, ENEMY) == Move({0,0}, {1,0}));
+    assert(gridStart.getPossibleMoveAt(111, ME) == Move({6,7}, {7,7}));
+    assert(gridStart.getPossibleMoveAt(111, ENEMY) == Move({7,7}, {6,7}));
     // This removes connections 0, 2, 3, and flips connections 4, 5
-    grid.move(Move({1,0}, {2,0}));
-    assert(grid.getPossibleMovesCount() == 107);
+    gridStart.move(Move({1,0}, {2,0}));
+    assert(gridStart.getPossibleMovesCount() == 107);
     // The connection 0 has been replaced by the last one
-    assert(grid.getPossibleMoveAt(0, ME) == Move({6,7}, {7,7}));
+    assert(gridStart.getPossibleMoveAt(0, ME) == Move({6,7}, {7,7}));
     // The connection 1 is still there
-    assert(grid.getPossibleMoveAt(1, ME) == Move({0,1}, {0,0}));
+    assert(gridStart.getPossibleMoveAt(1, ME) == Move({0,1}, {0,0}));
     // This connection must be flipped
-    assert(grid.getPossibleMoveAt(Connection(2,3).hash(), ME) != Move({3,0},{2,0}));
+    assert(gridStart.getPossibleMoveAt(Connection(2,3).hash(), ME) != Move({3,0},{2,0}));
     // This removes 4 connections, flips 1 to same, and flips back 1 to different
-    grid.move(Move({3,1}, {3,0}));
-    assert(grid.getPossibleMovesCount() == 103);
+    gridStart.move(Move({3,1}, {3,0}));
+    assert(gridStart.getPossibleMovesCount() == 103);
     // Check that the Connection({3,0},{2,0}) is back to the list
     bool found = false;
     for (int i = 0; i < 103; i++)
     {
-        if (grid.getPossibleMoveAt(i, ENEMY) == Move({3,0}, {2,0}))
+        if (gridStart.getPossibleMoveAt(i, ENEMY) == Move({3,0}, {2,0}))
         {
             found = true;
             break;
         }
     }
     assert(found);
+
+    // Grid at the end of the game
+    Grid gridEnd = BuildGrid(  "--------"
+                            "--------"
+                            "--------"
+                            "---XO---"
+                            "----OX--"
+                            "--------"
+                            "--------"
+                            "--------");
+    gridEnd.buildConnections();
+    assert(gridEnd.getPossibleMovesCount() == 2);
+    gridEnd.move(Move({3,4},{4,4}));
+    assert(gridEnd.getPossibleMovesCount() == 2);
+    assert(gridEnd.getPossibleMoveAt(0, ENEMY) == Move({4,3},{5,3}));
+    assert(gridEnd.getPossibleMoveAt(1, ENEMY) == Move({4,3},{4,4}));
+    gridEnd.move(Move({4,3},{5,3}));
+    assert(gridEnd.getPossibleMovesCount() == 0);
 }
 
 void testMcts()
